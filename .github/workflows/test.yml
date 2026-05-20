@@ -39,14 +39,14 @@ jobs:
         run: cargo generate-lockfile
       # https://twitter.com/jonhoo/status/1571290371124260865
       - name: cargo test --locked workspace
-        run: cargo test --exclude lib-sf --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --all-targets
+        run: cargo test --exclude lib-tr --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --all-targets
       # https://github.com/rust-lang/cargo/issues/6669
       - name: cargo test --doc workspace
-        run: cargo test --exclude lib-sf --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --doc
-      - name: cargo test libs-sf ffi
-        run: cargo test -p lib-sf --no-default-features --locked --all-targets
-      - name: cargo test --doc libs-sf ffi
-        run: cargo test -p lib-sf --no-default-features --locked --doc
+        run: cargo test --exclude lib-tr --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --doc
+      - name: cargo test lib-tr ffi
+        run: cargo test -p lib-tr --no-default-features --locked --all-targets
+      - name: cargo test --doc lib-tr ffi
+        run: cargo test -p lib-tr --no-default-features --locked --doc
   # minimal:
   #   # This action chooses the oldest version of the dependencies permitted by Cargo.toml to ensure
   #   # that this crate is compatible with the minimal version that this crate and its dependencies
@@ -119,9 +119,9 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: cargo test workspace
-        run: cargo test --exclude lib-sf --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --all-targets
-      - name: cargo test libs-sf ffi
-        run: cargo test -p lib-sf --no-default-features --locked --all-targets
+        run: cargo test --exclude lib-tr --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --all-targets
+      - name: cargo test lib-tr ffi
+        run: cargo test -p lib-tr --no-default-features --locked --all-targets
   coverage:
     # use llvm-cov to build and collect coverage and outputs in a format that
     # is compatible with codecov.io
@@ -163,9 +163,9 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: cargo llvm-cov workspace
-        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov_workspace.info --workspace --exclude sqlparser --exclude lib-sf --exclude sqlparser_derive
-      - name: cargo llvm-cov lib-sf ffi
-        run: cargo llvm-cov --locked --lcov --output-path lcov_libsf.info -p lib-sf --no-default-features
+        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov_workspace.info --workspace --exclude sqlparser --exclude lib-tr --exclude sqlparser_derive
+      - name: cargo llvm-cov lib-tr ffi
+        run: cargo llvm-cov --locked --lcov --output-path lcov_libsf.info -p lib-tr --no-default-features
       - name: Record Rust version
         run: echo "RUST=$(rustc --version)" >> "$GITHUB_ENV"
       - name: Upload to codecov.io

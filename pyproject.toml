@@ -1,0 +1,45 @@
+[project]
+name = "testcase_reduce"
+version = "0.1.0"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.14"
+readme = "README.md"
+description = "Project 2 for course Automated Software Testing ETH"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "maturin",
+]
+
+[build-system]
+requires = ["maturin>=1.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# point maturin at the ffi crate, not the workspace root
+manifest-path = "crates/ltr-ffi/Cargo.toml"
+module-name = "lib_tr"
+features = ["pyo3/extension-module"]
+python-source = "python"
+UV_CONFIG_SETTINGS="--build-option=--release"
+
+[tool.ruff]
+cache-dir = ".ruff_cache"
+line-length = 100
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402"]
+
+[tool.pyright]
+include = ["python"]
+extraPaths = ["python"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"

@@ -17,6 +17,5 @@ extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 pyo3 = { version = "0.28.2" }
-pythonize = { version = "0.28.0", features = ["serde_json"] }
-serde = {workspace = true }
-sqlparser = { workspace = true }
+pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
+tokio = { workspace = true }

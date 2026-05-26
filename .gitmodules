@@ -1,4 +1,0 @@
-[submodule "extern/sqlparser-rs"]
-	path = extern/sqlparser-rs
-	url = git@github.com:lmeller-git/datafusion-sqlparser-rs.git
-	branch = custom_dialect

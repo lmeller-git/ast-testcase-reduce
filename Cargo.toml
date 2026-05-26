@@ -16,12 +16,7 @@ license = "MIT"
 repository = "https://github.com/lmeller-git/ast-testcase-reduce"
 
 [workspace.dependencies]
-sqlparser = { path = "extern/sqlparser-rs", features = ["serde", "visitor", "arbitrary-derive"] }
-serde = "1.0.228"
-rand = "0.10.0"
-
-[patch.crates-io]
-sqlparser = { path = "extern/sqlparser-rs" }
+tokio = "1.40"
 
 [profile.release]
 lto = "fat"

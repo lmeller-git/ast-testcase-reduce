@@ -39,10 +39,10 @@ jobs:
         run: cargo generate-lockfile
       # https://twitter.com/jonhoo/status/1571290371124260865
       - name: cargo test --locked workspace
-        run: cargo test --exclude lib-tr --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --all-targets
+        run: cargo test --exclude lib-tr --workspace --locked --all-features --all-targets
       # https://github.com/rust-lang/cargo/issues/6669
       - name: cargo test --doc workspace
-        run: cargo test --exclude lib-tr --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --doc
+        run: cargo test --exclude lib-tr --workspace --locked --all-features --doc
       - name: cargo test lib-tr ffi
         run: cargo test -p lib-tr --no-default-features --locked --all-targets
       - name: cargo test --doc lib-tr ffi
@@ -119,7 +119,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: cargo test workspace
-        run: cargo test --exclude lib-tr --exclude sqlparser --exclude sqlparser_derive --workspace --locked --all-features --all-targets
+        run: cargo test --exclude lib-tr --workspace --locked --all-features --all-targets
       - name: cargo test lib-tr ffi
         run: cargo test -p lib-tr --no-default-features --locked --all-targets
   coverage:
@@ -163,7 +163,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: cargo llvm-cov workspace
-        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov_workspace.info --workspace --exclude sqlparser --exclude lib-tr --exclude sqlparser_derive
+        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov_workspace.info --workspace --exclude lib-tr
       - name: cargo llvm-cov lib-tr ffi
         run: cargo llvm-cov --locked --lcov --output-path lcov_libsf.info -p lib-tr --no-default-features
       - name: Record Rust version

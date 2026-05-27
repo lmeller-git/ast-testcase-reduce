@@ -23,7 +23,7 @@ build-backend = "maturin"
 # point maturin at the ffi crate, not the workspace root
 manifest-path = "crates/ltr-ffi/Cargo.toml"
 module-name = "lib_tr"
-features = ["pyo3/extension-module"]
+features = ["lib-tr/extension-module"]
 python-source = "python"
 UV_CONFIG_SETTINGS="--build-option=--release"
 

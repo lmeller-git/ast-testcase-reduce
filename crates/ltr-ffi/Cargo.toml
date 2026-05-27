@@ -17,5 +17,5 @@ extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 pyo3 = { version = "0.28.2" }
-pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
-tokio = { workspace = true }
+ltr-core = { workspace = true }
+ltr-schedule = { workspace = true }

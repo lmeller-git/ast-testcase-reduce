@@ -16,7 +16,6 @@ license = "MIT"
 repository = "https://github.com/lmeller-git/ast-testcase-reduce"
 
 [workspace.dependencies]
-tokio = "1.40"
 ltr-core = { path = "./crates/ltr-core" }
 ltr-schedule = { path = "./crates/ltr-schedule" }
 

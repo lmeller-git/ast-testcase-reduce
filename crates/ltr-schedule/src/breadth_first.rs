@@ -4,7 +4,7 @@ use std::{
     sync::Mutex,
 };
 
-use ltr_core::{EventInterpretation, EventReplay, ScheduledStep, StaticEvent, sync::Canceable};
+use ltr_core::{EventInterpretation, EventReplay, StaticEvent, sync::Canceable};
 
 use crate::StepScheduler;
 
@@ -36,7 +36,7 @@ where
     T: EventReplay<EventType = E> + Clone + Hash + Eq,
     E: StaticEvent + Clone + EventInterpretation,
 {
-    fn next(&self, token: C) -> Result<ltr_core::ScheduledStep<T>, C> {
+    fn next(&self, token: C) -> Result<T, C> {
         let mut queue = VecDeque::new();
         queue.push_back(self.current_root.lock().unwrap().clone());
 
@@ -52,7 +52,7 @@ where
 
                 if !pool.contains_key(&child_path) {
                     pool.insert(child_path.clone(), token);
-                    return Ok(ScheduledStep::new(child_path));
+                    return Ok(child_path);
                 }
 
                 queue.push_back(child_path);

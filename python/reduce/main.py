@@ -52,7 +52,7 @@ async def worker(scheduler: BFScheduler):
 async def main():
     scheduler = BFScheduler()
 
-    workers = [asyncio.create_task(worker(scheduler)) for _ in range(2)]
+    workers = [asyncio.create_task(worker(scheduler)) for _ in range(5)]
 
     _ = await asyncio.gather(*workers)
 

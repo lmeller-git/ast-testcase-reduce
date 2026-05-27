@@ -79,6 +79,9 @@ where
                 dead.insert(path.clone());
 
                 // reap all children
+                // Note that it is possible for a child to be correct. Since we do not search for global optimum, this does not matter. Any path to q-minimality is fine.
+                // Note further that this potentially correct child could have returned before us due to timing differnences. In this case it could have updated the root and we would now live in its subtree.
+                // This allows jumping across local minima in a contrained manner
                 let extracted = pool.extract_if(|k, _v| path.is_prefix_of(k));
                 for (child_path, item) in extracted {
                     item.cancel();
@@ -90,7 +93,7 @@ where
                 *root = path.clone();
                 drop(root);
 
-                // clear out stale dead (unreachable) entries. We do this before droppig
+                // clear out stale (unreachable) entries, I.e. paths that are nbot part of this subtree.
                 let mut dead = self.dead.lock().unwrap();
                 dead.retain(|k| path.is_prefix_of(k));
 

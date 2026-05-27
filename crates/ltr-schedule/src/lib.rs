@@ -1,14 +1,13 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use ltr_core::ScheduledStep;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod adaptive;
+mod breadth_first;
+mod depth_first;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub use breadth_first::*;
+
+pub trait StepScheduler<T, C, E> {
+    fn next(&self, token: C) -> Result<ScheduledStep<T>, C>;
+    fn put_result(&self, path: T, event: E);
+    fn notify_done(&self);
 }

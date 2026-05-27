@@ -75,6 +75,9 @@ version = "0.1.0"
 [[package]]
 name = "ltr-schedule"
 version = "0.1.0"
+dependencies = [
+ "ltr-core",
+]
 
 [[package]]
 name = "once_cell"

@@ -1,5 +1,3 @@
-use ltr_core::ScheduledStep;
-
 mod adaptive;
 mod breadth_first;
 mod depth_first;

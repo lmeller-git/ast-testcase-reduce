@@ -9,12 +9,13 @@ def add(n1: int, n2: int) -> int:
 
 def algorithm(path: DDMinPath) -> str:
     print(f"Evaluating path {path}")
-    return "TODO"
+    return f"{sum(path.to_list())}"
 
 
-async def oracle(_query: str) -> bool:
+async def oracle(query: str) -> bool:
     await asyncio.sleep(random.random())
-    return True
+    n_true = int(query)
+    return (n_true + 1) % 2 == 0
 
 
 async def worker(scheduler: BFScheduler):
@@ -54,7 +55,6 @@ async def main():
     workers = [asyncio.create_task(worker(scheduler)) for _ in range(2)]
 
     _ = await asyncio.gather(*workers)
-
 
 
 if __name__ == "__main__":

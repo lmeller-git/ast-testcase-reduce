@@ -23,10 +23,10 @@ fn main() {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
 
-    println!("Starting 1k Query Scheduler Stress Test...");
-    run_stress_test(1, 1_000);
-    run_stress_test(5, 1_000);
-    run_stress_test(16, 1_000);
+    println!("Starting 10k Query Scheduler Stress Test...");
+    run_stress_test(1, 10_000);
+    run_stress_test(5, 10_000);
+    run_stress_test(16, 10_000);
 }
 
 fn run_stress_test(num_workers: usize, total_queries: usize) {
@@ -41,9 +41,8 @@ fn run_stress_test(num_workers: usize, total_queries: usize) {
             let counter = global_counter.clone();
 
             scope.spawn(move || {
-                let token = MockCancelToken::new();
-
                 while counter.fetch_add(1, Ordering::Relaxed) < total_queries {
+                    let token = MockCancelToken::new();
                     if let Ok(path) = sch.next(token.clone()) {
                         if token.is_cancelled() {
                             continue;

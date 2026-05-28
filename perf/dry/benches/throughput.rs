@@ -20,13 +20,10 @@ fn bench_scheduler_throughput(c: &mut Criterion) {
 
     group.bench_function("sequential_1_worker", |b| {
         b.iter_with_setup(
-            || {
-                let scheduler = Arc::new(BFScheduler::new());
-                let token = MockCancelToken::new();
-                (scheduler, token)
-            },
-            |(scheduler, token)| {
+            || Arc::new(BFScheduler::new()),
+            |scheduler| {
                 for _ in 0..operations_per_iter {
+                    let token = MockCancelToken::new();
                     if let Ok(path) = scheduler.next(token.clone()) {
                         let is_valid = mock_oracle(&path);
                         let event_interp = MockInterpretation(is_valid);
@@ -36,7 +33,6 @@ fn bench_scheduler_throughput(c: &mut Criterion) {
                     }
                 }
                 black_box(scheduler);
-                black_box(token);
             },
         );
     });
@@ -51,8 +47,8 @@ fn bench_scheduler_throughput(c: &mut Criterion) {
                     for _ in 0..num_workers {
                         let sched = scheduler.clone();
                         scope.spawn(move || {
-                            let token = MockCancelToken::new();
                             for _ in 0..(operations_per_iter / num_workers) {
+                                let token = MockCancelToken::new();
                                 if let Ok(path) = sched.next(token.clone()) {
                                     if token.is_cancelled() {
                                         continue;

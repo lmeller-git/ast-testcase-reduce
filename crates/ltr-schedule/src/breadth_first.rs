@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     hash::Hash,
+    marker::PhantomData,
     sync::Mutex,
 };
 
@@ -8,34 +9,39 @@ use ltr_core::{EventInterpretation, EventReplay, StaticEvent, sync::Canceable};
 
 use crate::StepScheduler;
 
-pub struct BFScheduler<T, C> {
+pub struct BFScheduler<T, C, R> {
     current_root: Mutex<T>,
     task_pool: Mutex<HashMap<T, C>>,
     dead: Mutex<HashSet<T>>,
+    _result: PhantomData<R>,
 }
 
-impl<T: Default, C> Default for BFScheduler<T, C> {
+impl<T: Default, C, R> Default for BFScheduler<T, C, R> {
     fn default() -> Self {
         Self {
             current_root: T::default().into(),
             task_pool: HashMap::new().into(),
             dead: HashSet::new().into(),
+            _result: PhantomData,
         }
     }
 }
 
-impl<T: Default, C> BFScheduler<T, C> {
+impl<T: Default, C, R> BFScheduler<T, C, R> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<T, C, E> StepScheduler<T, C, E> for BFScheduler<T, C>
+impl<T, C, R> StepScheduler<T, C> for BFScheduler<T, C, R>
 where
     C: Canceable,
-    T: EventReplay<EventType = E> + Clone + Hash + Eq,
-    E: StaticEvent + Clone + EventInterpretation,
+    T: EventReplay + Clone + Hash + Eq,
+    T::EventType: StaticEvent + Clone,
+    R: EventInterpretation,
 {
+    type StateInterpretation = R;
+
     fn next(&self, token: C) -> Result<T, C> {
         let mut queue = VecDeque::new();
         queue.push_back(self.current_root.lock().unwrap().clone());
@@ -44,8 +50,8 @@ where
         let dead = self.dead.lock().unwrap();
 
         while let Some(parent_path) = queue.pop_front() {
-            for variant in E::VARIANTS {
-                let child_path = parent_path.extend(variant.clone());
+            for variant in T::EventType::VARIANTS.iter().cloned() {
+                let child_path = parent_path.extend(variant);
                 if dead.contains(&child_path) {
                     continue;
                 }
@@ -61,7 +67,7 @@ where
         Err(token)
     }
 
-    fn put_result(&self, path: T, event: E) {
+    fn put_result(&self, path: T, event_descriptor: Self::StateInterpretation) {
         let mut root = self.current_root.lock().unwrap();
 
         if !root.is_prefix_of(&path) {
@@ -72,7 +78,7 @@ where
         if let Some(active_task) = pool.remove(&path) {
             active_task.cancel();
 
-            if event.is_dead() {
+            if event_descriptor.is_dead() {
                 drop(root);
                 let mut dead = self.dead.lock().unwrap();
 

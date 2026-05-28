@@ -4,8 +4,10 @@ mod depth_first;
 
 pub use breadth_first::*;
 
-pub trait StepScheduler<T, C, E> {
+pub trait StepScheduler<T, C> {
+    type StateInterpretation;
+
     fn next(&self, token: C) -> Result<T, C>;
-    fn put_result(&self, path: T, event: E);
+    fn put_result(&self, path: T, event: Self::StateInterpretation);
     fn notify_done(&self);
 }

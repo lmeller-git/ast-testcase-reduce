@@ -12,7 +12,7 @@ impl Canceable for PyCancelToken {
 
 #[pyclass]
 pub struct BFScheduler {
-    inner: RawBFScheduler<DDMinPath, PyCancelToken>,
+    inner: RawBFScheduler<DDMinPath, PyCancelToken, DDMinEvent>,
 }
 
 #[pymethods]
@@ -29,7 +29,7 @@ impl BFScheduler {
     }
 
     fn put_result(&self, path: DDMinPath, event: DDMinEventType) {
-        self.inner.put_result(path, event.into());
+        self.inner.put_result(path, DDMinEvent(event));
     }
 }
 

@@ -1,10 +1,11 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
+use im::Vector;
 use ltr_core::{EventInterpretation, EventReplay, StaticEvent, sync::Canceable};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct MockPath {
-    pub p: Vec<MockEvent>,
+    pub p: Vector<MockEvent>,
 }
 
 impl EventReplay for MockPath {
@@ -12,12 +13,16 @@ impl EventReplay for MockPath {
 
     fn extend(&self, event: Self::EventType) -> Self {
         let mut clone = self.clone();
-        clone.p.push(event);
+        clone.p.push_back(event);
         clone
     }
 
     fn is_prefix_of(&self, other: &Self) -> bool {
-        other.p.starts_with(&self.p)
+        if self.p.len() > other.p.len() {
+            return false;
+        }
+
+        self.p.iter().zip(other.p.iter()).all(|(a, b)| a == b)
     }
 }
 

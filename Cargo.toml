@@ -22,4 +22,4 @@ ltr-schedule = { path = "./crates/ltr-schedule" }
 [profile.release]
 lto = "fat"
 codegen-units = 1
-# debug = true
+debug = true

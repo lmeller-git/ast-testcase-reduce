@@ -11,10 +11,8 @@ pub struct MockPath {
 impl EventReplay for MockPath {
     type EventType = MockEvent;
 
-    fn extend(&self, event: Self::EventType) -> Self {
-        let mut clone = self.clone();
-        clone.p.push_back(event);
-        clone
+    fn push(&mut self, event: Self::EventType) {
+        self.p.push_back(event);
     }
 
     fn is_prefix_of(&self, other: &Self) -> bool {
@@ -23,6 +21,10 @@ impl EventReplay for MockPath {
         }
 
         self.p.iter().zip(other.p.iter()).all(|(a, b)| a == b)
+    }
+
+    fn extend_with_slice(&mut self, slice: &[Self::EventType]) {
+        self.p.extend(slice.iter().cloned());
     }
 }
 

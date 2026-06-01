@@ -1,4 +1,4 @@
-use ltr_core::{EventInterpretation, EventReplay, StaticEvent, sync::Canceable};
+use ltr_core::{EventInterpretation, EventReplay, ScheduledStep, StaticEvent, sync::Canceable};
 use ltr_schedule::{BFScheduler as RawBFScheduler, StepScheduler};
 use pyo3::prelude::*;
 
@@ -12,7 +12,7 @@ impl Canceable for PyCancelToken {
 
 #[pyclass]
 pub struct BFScheduler {
-    inner: RawBFScheduler<DDMinPath, PyCancelToken, DDMinEvent>,
+    inner: RawBFScheduler<DDMinPath, DDMinEvent, PyCancelToken, DDMinEvent>,
 }
 
 #[pymethods]
@@ -24,12 +24,28 @@ impl BFScheduler {
         }
     }
 
-    fn next(&self, cancel_token: Py<PyAny>) -> PyResult<Option<DDMinPath>> {
-        Ok(self.inner.next(PyCancelToken(cancel_token)).ok())
+    fn next(&self, cancel_token: Py<PyAny>) -> PyResult<Option<PyScheduledStep>> {
+        Ok(self
+            .inner
+            .next(PyCancelToken(cancel_token))
+            .ok()
+            .map(|step| PyScheduledStep(Some(step))))
     }
 
-    fn put_result(&self, path: DDMinPath, event: DDMinEventType) {
-        self.inner.put_result(path, DDMinEvent(event));
+    fn put_result(&self, mut path: PyRefMut<PyScheduledStep>, event: DDMinEventType) {
+        self.inner
+            .put_result(path.0.take().unwrap(), DDMinEvent(event));
+    }
+}
+
+#[pyclass(from_py_object)]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct PyScheduledStep(Option<ScheduledStep<DDMinPath, ltr_schedule::ID>>);
+
+#[pymethods]
+impl PyScheduledStep {
+    pub fn path(&self) -> DDMinPath {
+        self.0.as_ref().map(|step| step.path().clone()).unwrap()
     }
 }
 
@@ -58,14 +74,16 @@ impl DDMinPath {
 impl EventReplay for DDMinPath {
     type EventType = DDMinEvent;
 
-    fn extend(&self, event: Self::EventType) -> Self {
-        let mut clone = self.0.clone();
-        clone.push(event);
-        Self(clone)
+    fn push(&mut self, event: Self::EventType) {
+        self.0.push(event);
     }
 
     fn is_prefix_of(&self, other: &Self) -> bool {
         other.0.starts_with(&self.0)
+    }
+
+    fn extend_with_slice(&mut self, slice: &[Self::EventType]) {
+        self.0.extend_from_slice(slice);
     }
 }
 

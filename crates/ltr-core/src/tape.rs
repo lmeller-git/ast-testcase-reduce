@@ -2,7 +2,7 @@ pub trait EventReplay: Sized {
     type EventType;
     fn push(&mut self, event: Self::EventType);
     fn is_prefix_of(&self, other: &Self) -> bool;
-    fn extend_with_slice(&mut self, slice: &[Self::EventType]) -> Self;
+    fn extend_with_slice(&mut self, slice: &[Self::EventType]);
 }
 
 pub trait DynamicEventReplay: EventReplay {

@@ -12,4 +12,8 @@ impl<T, M> ScheduledStep<T, M> {
     pub fn meta(&self) -> &M {
         &self.meta
     }
+
+    pub fn path(&self) -> &T {
+        &self.recording
+    }
 }

@@ -1,7 +1,8 @@
 pub trait EventReplay: Sized {
     type EventType;
-    fn extend(&self, event: Self::EventType) -> Self;
+    fn push(&mut self, event: Self::EventType);
     fn is_prefix_of(&self, other: &Self) -> bool;
+    fn extend_with_slice(&mut self, slice: &[Self::EventType]) -> Self;
 }
 
 pub trait DynamicEventReplay: EventReplay {
@@ -18,13 +19,14 @@ pub trait EventInterpretation {
 
 impl<T> DynamicEventReplay for T
 where
-    T: EventReplay,
+    T: EventReplay + Clone,
     T::EventType: StaticEvent + Clone,
 {
     fn children(&self) -> impl Iterator<Item = Self> {
-        T::EventType::VARIANTS
-            .iter()
-            .cloned()
-            .map(|segment| self.extend(segment))
+        T::EventType::VARIANTS.iter().cloned().map(|segment| {
+            let mut t_clone = self.clone();
+            t_clone.push(segment);
+            t_clone
+        })
     }
 }

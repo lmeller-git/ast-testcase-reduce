@@ -8,3 +8,4 @@ repository.workspace = true
 
 [dependencies]
 ltr-core = { workspace = true }
+smallvec = "1.15.1"

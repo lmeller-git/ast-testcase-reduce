@@ -395,6 +395,7 @@ name = "ltr-schedule"
 version = "0.1.0"
 dependencies = [
  "ltr-core",
+ "smallvec",
 ]
 
 [[package]]

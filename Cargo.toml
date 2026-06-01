@@ -18,6 +18,7 @@ repository = "https://github.com/lmeller-git/ast-testcase-reduce"
 [workspace.dependencies]
 ltr-core = { path = "./crates/ltr-core" }
 ltr-schedule = { path = "./crates/ltr-schedule" }
+rustc-hash = "2.1.2"
 
 [profile.release]
 lto = "fat"

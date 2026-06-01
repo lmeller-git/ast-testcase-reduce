@@ -27,7 +27,7 @@ async def worker(scheduler: BFScheduler):
         if path is None:
             break
 
-        query = algorithm(path)
+        query = algorithm(path.path())
 
         if cancel_event.is_set():
             continue

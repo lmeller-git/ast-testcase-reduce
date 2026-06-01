@@ -1,5 +1,5 @@
 [project]
-name = "testcase_reduce"
+name = "lib_tr"
 version = "0.1.0"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -20,12 +20,11 @@ requires = ["maturin>=1.0"]
 build-backend = "maturin"
 
 [tool.maturin]
-# point maturin at the ffi crate, not the workspace root
 manifest-path = "crates/ltr-ffi/Cargo.toml"
 module-name = "lib_tr"
-features = ["lib-tr/extension-module"]
+features = ["extension-module"]
 python-source = "python"
-UV_CONFIG_SETTINGS="--build-option=--release"
+profile = "release"
 
 [tool.ruff]
 cache-dir = ".ruff_cache"
@@ -42,4 +41,4 @@ include = ["python"]
 extraPaths = ["python"]
 venvPath = "."
 venv = ".venv"
-pythonVersion = "3.13"
+pythonVersion = "3.14"

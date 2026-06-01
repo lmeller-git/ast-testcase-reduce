@@ -14,7 +14,7 @@ use ltr_schedule::{BFScheduler, StepScheduler};
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn mock_oracle(path: &MockPath) -> bool {
-    std::thread::sleep(std::time::Duration::from_micros(100));
+    std::thread::sleep(std::time::Duration::from_micros(10));
     let n_true = path.p.iter().filter(|x| x.0).count();
     (n_true + 1) % 2 == 0
 }
@@ -23,10 +23,10 @@ fn main() {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
 
-    println!("Starting 10k Query Scheduler Stress Test...");
-    run_stress_test(1, 10_000);
-    run_stress_test(5, 10_000);
-    run_stress_test(16, 10_000);
+    println!("Starting 500k Query Scheduler Stress Test...");
+    run_stress_test(1, 500_000);
+    run_stress_test(5, 500_000);
+    run_stress_test(16, 500_000);
 }
 
 fn run_stress_test(num_workers: usize, total_queries: usize) {
@@ -47,7 +47,7 @@ fn run_stress_test(num_workers: usize, total_queries: usize) {
                         if token.is_cancelled() {
                             continue;
                         }
-                        let is_valid = mock_oracle(&path);
+                        let is_valid = mock_oracle(path.path());
                         sch.put_result(path, MockInterpretation(is_valid));
                     } else {
                         break;

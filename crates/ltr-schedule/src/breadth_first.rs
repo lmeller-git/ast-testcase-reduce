@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::{VecDeque, hash_map::Entry},
     hash::Hash,
     marker::PhantomData,
     sync::{Mutex, atomic::AtomicU64},
@@ -58,6 +58,7 @@ pub struct BFScheduler<T, E, C, R> {
     root_generation: AtomicU64,
     task_pool: Mutex<rustc_hash::FxHashMap<ID, (C, RelativePath<E>)>>,
     #[allow(clippy::type_complexity)]
+    explored: Mutex<rustc_hash::FxHashMap<u64, rustc_hash::FxHashMap<RelativePath<E>, Option<R>>>>,
     frontier: Mutex<VecDeque<RelativePath<E>>>,
     _result: PhantomData<R>,
 }
@@ -71,6 +72,7 @@ impl<T: Default, E, C, R> Default for BFScheduler<T, E, C, R> {
             current_root: root.into(),
             root_generation: AtomicU64::new(0),
             task_pool: rustc_hash::FxHashMap::with_hasher(rustc_hash::FxBuildHasher).into(),
+            explored: rustc_hash::FxHashMap::with_hasher(rustc_hash::FxBuildHasher).into(),
             frontier: frontier.into(),
             _result: PhantomData,
         }
@@ -103,30 +105,33 @@ where
 
         let root = self.current_root.lock().unwrap();
         let mut pool = self.task_pool.lock().unwrap();
+        let mut explored_pool = self.explored.lock().unwrap();
+        let explored = explored_pool.entry(current_gen).or_default();
 
         if queue.is_empty() {
             queue.push_back(RelativePath::new(current_gen));
         }
 
-        if let Some(parent_path) = queue.pop_front() {
-            let mut variants = T::EventType::VARIANTS.iter().cloned();
+        while let Some(parent_path) = queue.pop_front() {
+            for variant in T::EventType::VARIANTS.iter().cloned() {
+                let mut path_clone = parent_path.clone();
+                path_clone.path.push(variant);
 
-            if let Some(first_variant) = variants.next() {
-                let mut scheduled_path = parent_path.clone();
-                scheduled_path.path.push(first_variant);
-
-                queue.push_back(scheduled_path.clone());
-                for variant in variants {
-                    let mut path = parent_path.clone();
-                    path.path.push(variant);
-                    queue.push_back(path);
+                let entry = explored.entry(path_clone.clone());
+                match entry {
+                    Entry::Vacant(e) => {
+                        e.insert(None);
+                        let mut root_clone = root.clone();
+                        root_clone.extend_with_slice(&path_clone.path);
+                        _ = pool.insert(next_id.clone(), (token, path_clone.clone()));
+                        queue.push_back(path_clone);
+                        return Ok(ScheduledStep::new(root_clone, next_id));
+                    }
+                    Entry::Occupied(e) if e.get().as_ref().is_none_or(|e| !e.is_dead()) => {
+                        queue.push_back(path_clone)
+                    }
+                    _ => {}
                 }
-
-                let mut root_clone = root.clone();
-                root_clone.extend_with_slice(&scheduled_path.path);
-
-                pool.insert(next_id.clone(), (token, scheduled_path));
-                return Ok(ScheduledStep::new(root_clone, next_id));
             }
         }
         Err(token)
@@ -150,14 +155,11 @@ where
 
         if event_descriptor.is_dead() {
             drop(root);
+            let mut explored = self.explored.lock().unwrap();
             // reap all children
             // Note that it is possible for a child to be correct. Since we do not search for global optimum, this does not matter. Any path to q-minimality is fine.
             // Note further that this potentially correct child could have returned before us due to timing differnences. In this case it could have updated the root and we would now live in its subtree.
             // This allows jumping across local minima in a contrained manner
-            // 1. Cancel and remove active workers on this dead subtree
-
-            frontier.retain(|their_rel_path| !our_rel_path.is_prefix_of(their_rel_path));
-
             let extracted = pool.extract_if(|_id, (_, their_rel_path)| {
                 their_rel_path.generation == our_rel_path.generation
                     && our_rel_path.is_prefix_of(their_rel_path)
@@ -165,8 +167,10 @@ where
 
             for (_id, (token, _their_rel_path)) in extracted {
                 token.cancel();
-                // no need to mark their path as explored dead end, since it is only reachable via our path / paths in the frontier queue (which we just reaped)
+                // no need to mark their path as explored dead end, since it is only reachable via our path
             }
+            let this_explored_generation = explored.entry(our_rel_path.generation).or_default();
+            this_explored_generation.insert(our_rel_path, Some(event_descriptor));
         } else {
             // reap all non-children and set as root
             // no need to extend self.dead here as these dead paths here are unreachable from the new root anyways
@@ -187,12 +191,13 @@ where
             drop(root);
 
             // clear out stale (unreachable) entries, I.e. paths that are not part of this subtree.
+            let mut explored = self.explored.lock().unwrap();
 
-            // since we do all work here, we can assume that our gewneration was one equal to the previopus root generation.
-            // in other words there exist no entries with generation > current_generation. Entries with current_generation + 1 would already be correct if they existed, thus we can focus on entries with current_generation
+            // since we do all work here, we can assume that our gewneration was one equal to the previopus root generation. in other words there exist no entries with generation > current_generation + 1. Entries with current_generation + 1 are already correcy, thus we can focus on entries with current_generation
             pool.retain(|_id, (token, their_rel_path)| {
                 if their_rel_path.generation == current_generation + 1 {
-                    // unreachable in current model
+                    unreachable!();
+                    #[allow(unreachable_code)]
                     return true;
                 }
 
@@ -202,22 +207,32 @@ where
                     token.cancel();
                     false
                 } else {
-                    // now relative to our_rel_path and in our generation
+                    let old_exploration_state = explored
+                        .get_mut(&their_rel_path.generation)
+                        .and_then(|map| map.remove(their_rel_path))
+                        .flatten();
+
                     _ = their_rel_path.path.drain(..our_rel_path.path.len());
                     their_rel_path.generation += 1;
+
+                    _ = explored
+                        .entry(current_generation + 1)
+                        .or_default()
+                        .entry(their_rel_path.clone())
+                        .or_insert(old_exploration_state);
                     true
                 }
             });
+            explored.retain(|&generation, _| generation == current_generation + 1);
             frontier.clear();
-            // frontier.retain(|rel_path| our_rel_path.is_prefix_of(rel_path));
         }
     }
 
     fn notify_done(&self) {
-        self.frontier.lock().unwrap().clear();
         let mut pool = self.task_pool.lock().unwrap();
         for (_, t) in pool.drain() {
             t.0.cancel();
         }
+        self.frontier.lock().unwrap().clear();
     }
 }

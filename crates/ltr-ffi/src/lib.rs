@@ -46,6 +46,7 @@ impl BFScheduler {
     }
 }
 
+#[allow(clippy::type_complexity)]
 #[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct PyScheduledStep(

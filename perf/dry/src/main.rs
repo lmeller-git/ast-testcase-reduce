@@ -24,9 +24,9 @@ fn main() {
     let _profiler = dhat::Profiler::new_heap();
 
     println!("Starting 1000k Query Scheduler Stress Test...");
-    run_stress_test(1, 1000_000);
-    run_stress_test(5, 1000_000);
-    run_stress_test(16, 1000_000);
+    run_stress_test(1, 1_000_000);
+    run_stress_test(5, 1_000_000);
+    run_stress_test(16, 1_000_000);
 }
 
 fn run_stress_test(num_workers: usize, total_queries: usize) {

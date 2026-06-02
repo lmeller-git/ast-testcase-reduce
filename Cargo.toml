@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
   "crates/*", "perf/dry"
-]
+, "perf/reduce"]
 
 default-members = [
   "crates/*"

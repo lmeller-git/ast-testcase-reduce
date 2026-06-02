@@ -108,14 +108,10 @@ where
         let mut explored_pool = self.explored.lock().unwrap();
         let explored = explored_pool.entry(current_gen).or_default();
 
-        if queue.is_empty() {
-            queue.push_back(RelativePath::new(current_gen));
-        }
-
         while let Some(parent_path) = queue.pop_front() {
             for variant in T::EventType::VARIANTS.iter().cloned() {
                 let mut path_clone = parent_path.clone();
-                path_clone.path.push(variant);
+                path_clone.push(variant);
 
                 let entry = explored.entry(path_clone.clone());
                 match entry {
@@ -124,6 +120,9 @@ where
                         let mut root_clone = root.clone();
                         root_clone.extend_with_slice(&path_clone.path);
                         _ = pool.insert(next_id.clone(), (token, path_clone.clone()));
+                        // push back parent path too, as we may not be at the end of Varints.
+                        // if we ARE at teh end of variants, the next consumer will simply go into the occupied branch and spin a few more times
+                        queue.push_back(parent_path);
                         queue.push_back(path_clone);
                         return Ok(ScheduledStep::new(root_clone, next_id));
                     }
@@ -160,6 +159,9 @@ where
             // Note that it is possible for a child to be correct. Since we do not search for global optimum, this does not matter. Any path to q-minimality is fine.
             // Note further that this potentially correct child could have returned before us due to timing differnences. In this case it could have updated the root and we would now live in its subtree.
             // This allows jumping across local minima in a contrained manner
+
+            frontier.retain(|item| !our_rel_path.is_prefix_of(item));
+
             let extracted = pool.extract_if(|_id, (_, their_rel_path)| {
                 their_rel_path.generation == our_rel_path.generation
                     && our_rel_path.is_prefix_of(their_rel_path)
@@ -225,6 +227,7 @@ where
             });
             explored.retain(|&generation, _| generation == current_generation + 1);
             frontier.clear();
+            frontier.push_back(RelativePath::new(current_generation + 1));
         }
     }
 

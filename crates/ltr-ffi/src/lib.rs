@@ -1,5 +1,7 @@
-use ltr_core::{EventInterpretation, EventReplay, ScheduledStep, StaticEvent, sync::Canceable};
-use ltr_schedule::{BFScheduler as RawBFScheduler, StepScheduler};
+use std::sync::Weak;
+
+use ltr_core::{EventReplay, ScheduledStep, SelectionPolicy, StaticEvent, sync::Canceable};
+use ltr_schedule::{BFScheduler as RawBFScheduler, StepScheduler, TreeNode};
 use pyo3::prelude::*;
 
 pub struct PyCancelToken(Py<PyAny>);
@@ -8,11 +10,17 @@ impl Canceable for PyCancelToken {
     fn cancel(&self) {
         Python::attach(|py| _ = self.0.bind(py).call_method0("set"));
     }
+
+    fn is_cancelled(&self) -> bool {
+        // Python::attach(|py| self.0.bind(py).call_method0("get"))
+        false
+    }
 }
 
 #[pyclass]
 pub struct BFScheduler {
-    inner: RawBFScheduler<DDMinPath, DDMinEvent, PyCancelToken, DDMinEvent>,
+    inner:
+        RawBFScheduler<DDMinPath, DDMinEvent, PyCancelToken, DDMinEvent, DDMinEventInterpretor, 2>,
 }
 
 #[pymethods]
@@ -39,8 +47,10 @@ impl BFScheduler {
 }
 
 #[pyclass(from_py_object)]
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct PyScheduledStep(Option<ScheduledStep<DDMinPath, ltr_schedule::ID>>);
+#[derive(Clone, Debug)]
+pub struct PyScheduledStep(
+    Option<ScheduledStep<DDMinPath, Weak<TreeNode<DDMinEvent, PyCancelToken, DDMinEvent, 2>>>>,
+);
 
 #[pymethods]
 impl PyScheduledStep {
@@ -102,9 +112,29 @@ impl StaticEvent for DDMinEvent {
     const VARIANTS: &'static [Self] = &[Self(true), Self(false)];
 }
 
-impl EventInterpretation for DDMinEvent {
-    fn is_dead(&self) -> bool {
-        !self.0
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
+#[pyclass(from_py_object)]
+pub struct DDMinEventInterpretor;
+
+#[pymethods]
+impl DDMinEventInterpretor {
+    #[new]
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl SelectionPolicy<DDMinEvent> for DDMinEventInterpretor {
+    fn compare(a: &DDMinEvent, b: &DDMinEvent) -> std::cmp::Ordering {
+        a.0.cmp(&b.0)
+    }
+
+    fn may_reject(s: &DDMinEvent) -> bool {
+        !s.0
+    }
+
+    fn may_accept(s: &DDMinEvent) -> bool {
+        s.0
     }
 }
 

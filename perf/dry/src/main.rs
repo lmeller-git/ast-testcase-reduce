@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Instant;
 
-use dry::{MockCancelToken, MockInterpretation, MockPath};
+use dry::{BooleanAcceptor, MockCancelToken, MockInterpretation, MockPath};
 use ltr_schedule::{BFScheduler, StepScheduler};
 
 // benchmarks llm generated
@@ -30,7 +30,16 @@ fn main() {
 }
 
 fn run_stress_test(num_workers: usize, total_queries: usize) {
-    let scheduler = Arc::new(BFScheduler::new());
+    let scheduler: Arc<
+        BFScheduler<
+            MockPath,
+            dry::MockEvent,
+            MockCancelToken,
+            MockInterpretation,
+            BooleanAcceptor,
+            2,
+        >,
+    > = Arc::new(BFScheduler::new());
     let global_counter = Arc::new(AtomicUsize::new(0));
 
     let now = Instant::now();

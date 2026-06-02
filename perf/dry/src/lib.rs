@@ -1,7 +1,7 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
 use im::Vector;
-use ltr_core::{EventInterpretation, EventReplay, StaticEvent, sync::Canceable};
+use ltr_core::{EventReplay, SelectionPolicy, StaticEvent, sync::Canceable};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct MockPath {
@@ -35,11 +35,22 @@ impl StaticEvent for MockEvent {
     const VARIANTS: &'static [Self] = &[Self(true), Self(false)];
 }
 
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct MockInterpretation(pub bool);
 
-impl EventInterpretation for MockInterpretation {
-    fn is_dead(&self) -> bool {
-        !self.0
+pub struct BooleanAcceptor;
+
+impl SelectionPolicy<MockInterpretation> for BooleanAcceptor {
+    fn compare(a: &MockInterpretation, b: &MockInterpretation) -> std::cmp::Ordering {
+        a.cmp(b)
+    }
+
+    fn may_reject(s: &MockInterpretation) -> bool {
+        !s.0
+    }
+
+    fn may_accept(s: &MockInterpretation) -> bool {
+        s.0
     }
 }
 
@@ -64,5 +75,9 @@ impl Canceable for MockCancelToken {
     fn cancel(&self) {
         self.is_cancelled
             .store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.is_cancelled.load(std::sync::atomic::Ordering::Acquire)
     }
 }

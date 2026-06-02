@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 pub trait EventReplay: Sized {
     type EventType;
     fn push(&mut self, event: Self::EventType);
@@ -13,10 +15,6 @@ pub trait StaticEvent: Sized + 'static {
     const VARIANTS: &'static [Self];
 }
 
-pub trait EventInterpretation {
-    fn is_dead(&self) -> bool;
-}
-
 impl<T> DynamicEventReplay for T
 where
     T: EventReplay + Clone,
@@ -29,4 +27,10 @@ where
             t_clone
         })
     }
+}
+
+pub trait SelectionPolicy<S> {
+    fn compare(a: &S, b: &S) -> Ordering;
+    fn may_reject(s: &S) -> bool;
+    fn may_accept(s: &S) -> bool;
 }

@@ -6,7 +6,7 @@ use reduce::*;
 
 #[tokio::main]
 async fn main() {
-    let num_workers = 16;
+    let num_workers = 8;
     let query_len = 1000;
 
     let mut base_query = vec![0u16; query_len];
@@ -36,7 +36,16 @@ async fn main() {
 
     let start_time = Instant::now();
     let mut handles = Vec::new();
-    let scheduler = Arc::new(BFScheduler::new());
+    let scheduler: Arc<
+        BFScheduler<
+            dry::MockPath,
+            dry::MockEvent,
+            MockCancelToken,
+            MockInterpretationResult,
+            MockResultInterpretor,
+            2,
+        >,
+    > = Arc::new(BFScheduler::new());
 
     for _ in 0..num_workers {
         let sched_clone = scheduler.clone();

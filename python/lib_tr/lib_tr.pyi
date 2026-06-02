@@ -12,3 +12,6 @@ class BFScheduler:
 
 class PyScheduledStep:
     def path(self) -> DDMinPath: ...
+
+class DDMinEventInterpretor:
+    def __init__(self) -> None: ...

@@ -1,5 +1,5 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use dry::{MockCancelToken, MockInterpretation, MockPath};
+use dry::{BooleanAcceptor, MockCancelToken, MockEvent, MockInterpretation, MockPath};
 use ltr_schedule::{BFScheduler, StepScheduler};
 use std::hint::black_box;
 use std::sync::Arc;
@@ -20,7 +20,16 @@ fn bench_scheduler_throughput(c: &mut Criterion) {
 
     group.bench_function("sequential_1_worker", |b| {
         b.iter_with_setup(
-            || Arc::new(BFScheduler::new()),
+            || {
+                Arc::new(BFScheduler::<
+                    MockPath,
+                    MockEvent,
+                    MockCancelToken,
+                    MockInterpretation,
+                    BooleanAcceptor,
+                    2,
+                >::new())
+            },
             |scheduler| {
                 for _ in 0..operations_per_iter {
                     let token = MockCancelToken::new();
@@ -39,7 +48,16 @@ fn bench_scheduler_throughput(c: &mut Criterion) {
 
     group.bench_function("parallel_5_workers", |b| {
         b.iter_with_setup(
-            || Arc::new(BFScheduler::new()),
+            || {
+                Arc::new(BFScheduler::<
+                    MockPath,
+                    MockEvent,
+                    MockCancelToken,
+                    MockInterpretation,
+                    BooleanAcceptor,
+                    2,
+                >::new())
+            },
             |scheduler| {
                 let num_workers = 5;
 

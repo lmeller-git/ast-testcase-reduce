@@ -3,8 +3,8 @@ use std::{
     sync::{Arc, LazyLock, Mutex},
 };
 
-use dry::{MockInterpretation, MockPath};
-use ltr_core::sync::Canceable;
+use dry::MockPath;
+use ltr_core::{SelectionPolicy, sync::Canceable};
 use ltr_schedule::StepScheduler;
 use tokio_util::sync::CancellationToken;
 
@@ -29,6 +29,46 @@ impl Canceable for MockCancelToken {
     fn cancel(&self) {
         self.token.cancel();
     }
+
+    fn is_cancelled(&self) -> bool {
+        self.token.is_cancelled()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MockInterpretationResult {
+    Dead,
+    Valid { length: usize },
+}
+
+pub struct MockResultInterpretor;
+
+impl SelectionPolicy<MockInterpretationResult> for MockResultInterpretor {
+    fn compare(a: &MockInterpretationResult, b: &MockInterpretationResult) -> std::cmp::Ordering {
+        match (a, b) {
+            (
+                MockInterpretationResult::Valid { length: l1 },
+                MockInterpretationResult::Valid { length: l2 },
+            ) => l2.cmp(l1),
+            (MockInterpretationResult::Dead, MockInterpretationResult::Dead) => {
+                std::cmp::Ordering::Equal
+            }
+            (MockInterpretationResult::Valid { .. }, MockInterpretationResult::Dead) => {
+                std::cmp::Ordering::Greater
+            }
+            (MockInterpretationResult::Dead, MockInterpretationResult::Valid { .. }) => {
+                std::cmp::Ordering::Less
+            }
+        }
+    }
+
+    fn may_reject(s: &MockInterpretationResult) -> bool {
+        matches!(s, MockInterpretationResult::Dead)
+    }
+
+    fn may_accept(_s: &MockInterpretationResult) -> bool {
+        false
+    }
 }
 
 #[derive(Default, Debug)]
@@ -37,9 +77,8 @@ pub struct Minimal(pub Mutex<Vec<u16>>);
 pub static MINIMAL: LazyLock<Arc<Minimal>> = LazyLock::new(Arc::default);
 
 pub const CRITICAL_TOKENS: &[u16] = &[
-    4, 11, 22, 33, 78, 42, 90, 2342, 123, 22, 23444, 19829, 21333, 11, 1, 2183, 9902, 23947,
-    12843,
-    // 23, 55, 1, 233,
+    4, 11, 22, 33, 78, 42, 90, 2342, 123, 22, 23444, 19829, 21333, 11, 1, 2183, 9902, 23947, 12843,
+    23, 55, 1, 233,
 ];
 
 pub fn algo(path: &MockPath, base_query: &mut Vec<u16>) {
@@ -55,9 +94,9 @@ pub fn algo(path: &MockPath, base_query: &mut Vec<u16>) {
     *base_query = kept_items;
 }
 
-fn do_algo(path: &MockPath, mut base_query: Vec<u16>) -> MockInterpretation {
+fn do_algo(path: &MockPath, mut base_query: Vec<u16>) -> MockInterpretationResult {
     if path.p.len() > base_query.len() {
-        return MockInterpretation(false);
+        return MockInterpretationResult::Dead;
     }
 
     algo(path, &mut base_query);
@@ -66,7 +105,7 @@ fn do_algo(path: &MockPath, mut base_query: Vec<u16>) -> MockInterpretation {
 
 pub async fn run_worker<S>(scheduler: Arc<S>, base_query: Vec<u16>)
 where
-    S: StepScheduler<MockPath, MockCancelToken, StateInterpretation = MockInterpretation>,
+    S: StepScheduler<MockPath, MockCancelToken, StateInterpretation = MockInterpretationResult>,
     S::ItemMeta: Send + 'static + Clone,
 {
     loop {
@@ -98,20 +137,22 @@ where
     }
 }
 
-pub fn oracle(query: &[u16]) -> MockInterpretation {
-    let mut dummy_acc: u64 = 0;
-    for _ in 0..10_000_000 {
-        dummy_acc = dummy_acc.wrapping_add(1);
-        black_box(dummy_acc);
+pub fn oracle(query: &[u16]) -> MockInterpretationResult {
+    let mut x: i32 = 0;
+    for _ in 0..5_000_000 {
+        x = x.wrapping_add(1);
+        black_box(x);
     }
 
     let res = CRITICAL_TOKENS.iter().all(|token| query.contains(token));
-    // println!("evaluating {:?} -> {:?}", query, res);
     if res {
         let mut min = MINIMAL.0.lock().unwrap();
         if min.len() > query.len() || min.is_empty() {
             *min = query.to_vec();
         }
+        return MockInterpretationResult::Valid {
+            length: query.len(),
+        };
     }
-    MockInterpretation(res)
+    MockInterpretationResult::Dead
 }

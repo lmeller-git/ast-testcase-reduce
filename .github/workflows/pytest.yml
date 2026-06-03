@@ -22,11 +22,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: cargo generate-lockfile
-        # enable this ci template to run regardless of whether the lockfile is checked in or not
-        if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
-
       - name: set up
         uses: actions/setup-python@v6
 
@@ -69,10 +64,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: dependencies
-        run: |
-          uv venv
-          uv pip install pytest pytest-cov maturin
-          uv run maturin develop --release
+        run: uv sync
 
       - name: run
         run: uv run pytest

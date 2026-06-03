@@ -8,3 +8,4 @@
 **/.coverage
 **.so
 docker_out/
+queries/

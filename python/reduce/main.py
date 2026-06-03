@@ -1,6 +1,6 @@
 import asyncio
 import random
-from lib_tr import BFScheduler, DDMinPath
+from lib_ramis import BFScheduler, DDMinPath
 
 
 def add(n1: int, n2: int) -> int:

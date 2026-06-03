@@ -1,5 +1,5 @@
 [project]
-name = "lib_tr"
+name = "lib_ramis"
 version = "0.1.0"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -20,10 +20,10 @@ requires = ["maturin>=1.0"]
 build-backend = "maturin"
 
 [tool.maturin]
-manifest-path = "crates/ltr-ffi/Cargo.toml"
-module-name = "lib_tr"
+manifest-path = "extern/ramis/bindings/python/Cargo.toml"
+module-name = "lib_ramis"
 features = ["extension-module"]
-python-source = "python"
+python-source = "extern/ramis/python"
 profile = "release"
 
 [tool.ruff]

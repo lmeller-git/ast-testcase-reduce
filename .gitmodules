@@ -1,0 +1,3 @@
+[submodule "extern/ramis"]
+	path = extern/ramis
+	url = git@github.com:lmeller-git/Ramis.git

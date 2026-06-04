@@ -3,7 +3,6 @@ from typing import override
 from lib_ramis import CancelToken, GenericResult, PyState
 from lib_ramis.binary import BinaryBFS, Binary
 from lib_ramis.traced import TracedBFS
-import uvloop
 import argparse
 import os
 import sys
@@ -357,4 +356,5 @@ if __name__ == "__main__":
     if sys.platform == "win32":
         asyncio.run(main(args.query, args.test))
     else:
+        import uvloop
         uvloop.run(main(args.query, args.test))

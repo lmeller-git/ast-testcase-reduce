@@ -1,6 +1,7 @@
 import asyncio
 from typing import override
-from lib_ramis import CancelToken, GenericResult
+from lib_ramis import CancelToken, GenericResult, PyState
+from lib_ramis.binary import BinaryBFS, Binary
 from lib_ramis.traced import TracedBFS
 import uvloop
 import argparse
@@ -25,6 +26,57 @@ class AsyncCancel(CancelToken):
     @override
     def is_cancelled(self) -> bool:
         return self.event.is_set()
+
+
+class DDMinState(PyState):
+    def __init__(self, sql: str, n: int = 2, phase: str = "splits", idx: int = 0):
+        super().__init__()
+        self.sql: str = sql
+        self.n: int = n
+        self.phase: str = phase
+        self.idx: int = idx
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.n > len(self.sql)
+
+    def get_candidate(self) -> str:
+        if self.is_terminal:
+            return ""
+
+        size, remainder = divmod(len(self.sql), self.n)
+        start = self.idx * size + min(self.idx, remainder)
+        end = start + size + (1 if self.idx < remainder else 0)
+
+        if self.phase == "splits":
+            return self.sql[start:end]
+        else:
+            return self.sql[:start] + self.sql[end:]
+
+    @override
+    def step(self, event: Binary) -> DDMinState:
+        if self.is_terminal:
+            return DDMinState(sql="", n=self.n, phase=self.phase, idx=self.idx)
+
+        if event == Binary.Yes:
+            new_sql = self.get_candidate()
+            return DDMinState(sql=new_sql, n=2, phase="splits", idx=0)
+
+        elif event == Binary.No:
+            next_idx = self.idx + 1
+            next_phase = self.phase
+            next_n = self.n
+
+            if next_idx >= next_n:
+                if next_phase == "splits" and next_n > 2:
+                    next_phase = "complements"
+                    next_idx = 0
+                else:
+                    next_n *= 2
+                    next_phase = "splits"
+                    next_idx = 0
+
+            return DDMinState(sql=self.sql, n=next_n, phase=next_phase, idx=next_idx)
 
 
 shared_context = {"initial_query": "", "best_query": ""}
@@ -188,6 +240,42 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
             print(f"could not remove file {tmp_path}")
 
 
+async def worker2(scheduler: BinaryBFS, test_script: str):
+    while True:
+        cancel_event = AsyncCancel()
+        path = scheduler.next(cancel_event)
+
+        if path is None:
+            break
+
+        if scheduler.is_cancelled(path):
+            continue
+
+        cancel_task = asyncio.create_task(cancel_event.event.wait())
+
+        state: DDMinState = path.state()
+        query = state.get_candidate()
+
+        actual_reduction = len(shared_context["best_query"]) - len(query) if query else 0
+        oracle_task = asyncio.create_task(oracle(query, test_script, actual_reduction))
+
+        done, pending = await asyncio.wait(
+            [cancel_task, oracle_task], return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in pending:
+            _ = task.cancel()
+
+        if cancel_task in done:
+            continue
+
+        result = oracle_task.result()
+        scheduler.put_result(path, result)
+
+        if not result.is_dead() and query:
+            shared_context["best_query"] = query
+
+
 async def worker(scheduler: TracedBFS, test_script: str):
     while True:
         cancel_event = AsyncCancel()
@@ -237,6 +325,18 @@ async def main(query_path: str, test_script: str):
     scheduler = TracedBFS()
 
     workers = [asyncio.create_task(worker(scheduler, test_script)) for _ in range(5)]
+
+    _ = await asyncio.gather(*workers)
+
+    print(f"Reduced query: {shared_context['best_query']}")
+
+    shared_context["initial_query"] = initial_query
+    shared_context["best_query"] = initial_query
+    shared_context["test_script"] = test_script
+
+    scheduler = BinaryBFS(DDMinState(initial_query))
+
+    workers = [asyncio.create_task(worker2(scheduler, test_script)) for _ in range(5)]
 
     _ = await asyncio.gather(*workers)
 

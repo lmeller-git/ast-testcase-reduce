@@ -19,3 +19,6 @@ test: test-rust test-py
 
 run: build
     uv run python/reduce/main.py
+
+run-1: build
+    uv run python/reduce/main.py --query queries/query1/original_test.sql --test queries/query1/test.sh

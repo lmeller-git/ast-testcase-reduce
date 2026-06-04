@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
 
 ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}" \
     UV_LINK_MODE=copy \

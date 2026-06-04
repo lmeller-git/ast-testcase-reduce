@@ -2,6 +2,7 @@ clean:
     uv clean
     rm -f extern/ramis/python/lib_ramis/*.so
     rm -rf extern/ramis/target
+    rm -rf target/maturin
 
 build:
     uv sync

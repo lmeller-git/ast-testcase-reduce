@@ -256,7 +256,7 @@ async def worker2(scheduler: BinaryBFS, test_script: str):
         state: DDMinState = path.state()
         query = state.get_candidate()
 
-        actual_reduction = len(shared_context["best_query"]) - len(query) if query else 0
+        actual_reduction = (len(shared_context["best_query"]) - len(query)) if query else 0
         oracle_task = asyncio.create_task(oracle(query, test_script, actual_reduction))
 
         done, pending = await asyncio.wait(
@@ -293,7 +293,7 @@ async def worker(scheduler: TracedBFS, test_script: str):
 
         cancel_task = asyncio.create_task(cancel_event.event.wait())
 
-        actual_reduction = len(shared_context["best_query"]) - len(query) if query else 0
+        actual_reduction = (len(shared_context["best_query"]) - len(query)) if query else 0
 
         oracle_task = asyncio.create_task(oracle(query, test_script, actual_reduction))
 

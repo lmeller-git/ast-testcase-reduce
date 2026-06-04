@@ -1,3 +1,6 @@
+default:
+    @just --list
+
 clean:
     uv clean
     rm -f extern/ramis/python/lib_ramis/*.so
@@ -22,3 +25,7 @@ run: build
 
 run-1: build
     uv run python/reduce/main.py --query queries/query1/original_test.sql --test queries/query1/test.sh
+
+docker-it:
+    docker build -t testcase-reduce .
+    docker run -it --init --rm --entrypoint /bin/bash -v docker_out testcase-reduce

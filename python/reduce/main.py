@@ -1,15 +1,30 @@
 import asyncio
+from typing import override
+from lib_ramis import CancelToken, GenericResult
+from lib_ramis.traced import TracedBFS
 import uvloop
 import argparse
 import os
 import tempfile
 import sqlglot
 
-from lib_ramis import BFScheduler, ReductionStepResult
-
 
 def add(n1: int, n2: int) -> int:
     return n1 + n2
+
+
+class AsyncCancel(CancelToken):
+    def __init__(self) -> None:
+        super().__init__()
+        self.event: asyncio.Event = asyncio.Event()
+
+    @override
+    def cancel(self) -> None:
+        self.event.set()
+
+    @override
+    def is_cancelled(self) -> bool:
+        return self.event.is_set()
 
 
 shared_context = {"initial_query": "", "best_query": ""}
@@ -116,7 +131,7 @@ def algorithm2(trace: list[bool]) -> str:
             granularity *= 2
 
 
-async def oracle(query: str, test_script: str, reduction: int) -> ReductionStepResult:
+async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
     cached_value = cached.get(query)
     if cached_value is not None:
         return cached_value
@@ -125,7 +140,7 @@ async def oracle(query: str, test_script: str, reduction: int) -> ReductionStepR
         _ = sqlglot.parse_one(query, dialect="sqlite")
     except Exception as _e:
         # print(f"could not parse sql due to: {e}\n")
-        return ReductionStepResult.new(0)
+        return GenericResult(0)
 
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", suffix=".sql", delete=False
@@ -150,11 +165,11 @@ async def oracle(query: str, test_script: str, reduction: int) -> ReductionStepR
         _ = await process.wait()
 
         if process.returncode != 0:
-            r = ReductionStepResult.new(0)
+            r = GenericResult(0)
             cached[query] = r
             return r
         else:
-            r = ReductionStepResult.new(1 + reduction)
+            r = GenericResult(1 + reduction)
             cached[query] = r
             return r
 
@@ -173,9 +188,9 @@ async def oracle(query: str, test_script: str, reduction: int) -> ReductionStepR
             print(f"could not remove file {tmp_path}")
 
 
-async def worker(scheduler: BFScheduler, test_script: str):
+async def worker(scheduler: TracedBFS, test_script: str):
     while True:
-        cancel_event = asyncio.Event()
+        cancel_event = AsyncCancel()
         path = scheduler.next(cancel_event)
 
         if path is None:
@@ -185,10 +200,10 @@ async def worker(scheduler: BFScheduler, test_script: str):
         trace = path_.to_list()
         query = algorithm2(trace)
 
-        if cancel_event.is_set():
+        if scheduler.is_cancelled(path):
             continue
 
-        cancel_task = asyncio.create_task(cancel_event.wait())
+        cancel_task = asyncio.create_task(cancel_event.event.wait())
 
         actual_reduction = len(shared_context["best_query"]) - len(query) if query else 0
 
@@ -219,7 +234,7 @@ async def main(query_path: str, test_script: str):
     shared_context["best_query"] = initial_query
     shared_context["test_script"] = test_script
 
-    scheduler = BFScheduler()
+    scheduler = TracedBFS()
 
     workers = [asyncio.create_task(worker(scheduler, test_script)) for _ in range(5)]
 

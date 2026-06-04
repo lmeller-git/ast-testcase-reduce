@@ -6,6 +6,7 @@ from lib_ramis.traced import TracedBFS
 import uvloop
 import argparse
 import os
+import sys
 import tempfile
 import sqlglot
 
@@ -353,4 +354,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    uvloop.run(main(args.query, args.test))
+    if sys.platform == "win32":
+        asyncio.run(main(args.query, args.test))
+    else:
+        uvloop.run(main(args.query, args.test))

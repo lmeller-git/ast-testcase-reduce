@@ -28,7 +28,7 @@ class AsyncCancel(CancelToken):
         return self.event.is_set()
 
 
-class DDMinState(PyState[BinaryEvent]):
+class DDMinState(PyState):
     def __init__(self, sql: str, n: int = 2, phase: str = "splits", idx: int = 0):
         super().__init__()
         self.sql: str = sql

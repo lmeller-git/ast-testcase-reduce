@@ -8,7 +8,7 @@ readme = "README.md"
 description = "Project 2 for course Automated Software Testing ETH"
 dependencies = [
     "sqlglot>=30.8.0",
-    "uvloop>=0.22.1",
+    "uvloop>=0.22.1; sys_platform != 'win32'",
 ]
 
 [dependency-groups]

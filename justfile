@@ -28,7 +28,7 @@ run-1 n: build
 
 docker-it:
     docker build -t testcase-reduce .
-    docker run -it --init --rm --entrypoint /bin/bash -v docker_out testcase-reduce
+    docker run -it --init --rm --entrypoint bash -v docker_out testcase-reduce
 
 lint:
     uv run ruff check python

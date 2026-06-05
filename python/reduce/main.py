@@ -1,7 +1,7 @@
 import asyncio
 from typing import override
 from lib_ramis import CancelToken, GenericResult, PyState
-from lib_ramis.binary import BinaryBFS, Binary
+from lib_ramis.binary import BinaryBFS, BinaryEvent
 from lib_ramis.traced import TracedBFS
 import argparse
 import os
@@ -28,7 +28,7 @@ class AsyncCancel(CancelToken):
         return self.event.is_set()
 
 
-class DDMinState(PyState):
+class DDMinState(PyState[BinaryEvent]):
     def __init__(self, sql: str, n: int = 2, phase: str = "splits", idx: int = 0):
         super().__init__()
         self.sql: str = sql
@@ -54,15 +54,15 @@ class DDMinState(PyState):
             return self.sql[:start] + self.sql[end:]
 
     @override
-    def step(self, event: Binary) -> DDMinState:
+    def step(self, event: BinaryEvent) -> DDMinState:
         if self.is_terminal:
             return DDMinState(sql="", n=self.n, phase=self.phase, idx=self.idx)
 
-        if event == Binary.Yes:
+        if event == BinaryEvent.Yes:
             new_sql = self.get_candidate()
             return DDMinState(sql=new_sql, n=2, phase="splits", idx=0)
 
-        elif event == Binary.No:
+        elif event == BinaryEvent.No:
             next_idx = self.idx + 1
             next_phase = self.phase
             next_n = self.n
@@ -240,7 +240,7 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
             print(f"could not remove file {tmp_path}")
 
 
-async def worker2(scheduler: BinaryBFS, test_script: str):
+async def worker2(scheduler: BinaryBFS[DDMinState], test_script: str):
     while True:
         cancel_event = AsyncCancel()
         path = scheduler.next(cancel_event)

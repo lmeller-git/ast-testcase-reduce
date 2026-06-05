@@ -16,6 +16,8 @@ dev = [
   "pytest",
   "pytest-cov",
   "maturin",
+  "ruff>=0.15.15",
+  "pyright>=1.1.410",
 ]
 
 [build-system]

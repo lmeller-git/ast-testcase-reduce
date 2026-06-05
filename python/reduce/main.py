@@ -314,6 +314,37 @@ async def worker(scheduler: TracedBFS, test_script: str):
             shared_context["best_query"] = query
 
 
+async def sequential(test_script: str):
+    state = DDMinState(shared_context["initial_query"])
+
+    while True:
+
+        next = state.get_candidate()
+
+        if not next:
+            break
+
+        actual_reduction = len(shared_context["initial_query"]) - len(next)
+
+        oracle_task = asyncio.create_task(oracle(next, test_script, actual_reduction))
+
+        _done, pending = await asyncio.wait(
+            [oracle_task], return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in pending:
+            _ = task.cancel()
+
+
+        result = oracle_task.result()
+
+        if result.is_dead():
+            state = state.step(BinaryEvent.No)
+        else:
+            state = state.step(BinaryEvent.Yes)
+            shared_context["best_query"] = next
+
+
 async def main(query_path: str, test_script: str):
     with open(query_path, "r", encoding="utf-8") as f:
         initial_query = f.read()
@@ -321,6 +352,14 @@ async def main(query_path: str, test_script: str):
     shared_context["initial_query"] = initial_query
     shared_context["best_query"] = initial_query
     shared_context["test_script"] = test_script
+
+    workers = [asyncio.create_task(sequential(test_script)) for _ in range(1)]
+
+    _ = await asyncio.gather(*workers)
+
+    print(f"Reduced query: {shared_context['best_query']}")
+
+    return
 
     scheduler = TracedBFS()
 

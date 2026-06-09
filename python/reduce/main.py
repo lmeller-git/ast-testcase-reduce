@@ -79,8 +79,7 @@ class DDMinState(PyState):
             return DDMinState(sql=self.sql, n=next_n, phase=next_phase, idx=next_idx)
 
 
-shared_context = {"initial_query": "", "best_query": ""}
-cached = {}
+shared_context = {"initial_query": "", "best_query": "", "cached": {}}
 
 
 def algorithm(trace: list[bool]) -> str:
@@ -184,6 +183,7 @@ def algorithm2(trace: list[bool]) -> str:
 
 
 async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
+    cached = shared_context["cached"]
     cached_value = cached.get(query)
     if cached_value is not None:
         return cached_value
@@ -192,6 +192,7 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
         _ = sqlglot.parse_one(query, dialect="sqlite")
     except Exception as _e:
         # print(f"could not parse sql due to: {e}\n")
+        cached[query] = GenericResult(0)
         return GenericResult(0)
 
     with tempfile.NamedTemporaryFile(
@@ -240,6 +241,70 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
             print(f"could not remove file {tmp_path}")
 
 
+async def oracle2(query: str, test_script: str, reduction: int) -> tuple[GenericResult, bool]:
+    if len(query) == 0:
+        return (GenericResult(0), False)
+
+    cached = shared_context["cached"]
+
+
+    cached_value = cached.get(query)
+    if cached_value is not None:
+        return cached_value
+
+    try:
+        _ = sqlglot.parse_one(query, dialect="sqlite")
+    except Exception as _e:
+        # print(f"could not parse sql due to: {e}\n")
+        cached[query] = (GenericResult(1), False)
+        return (GenericResult(1), False)
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".sql", delete=False
+    ) as tmp:
+        _ = tmp.write(query)
+        tmp_path = tmp.name
+
+    process = None
+    try:
+        test_script_abs = os.path.abspath(test_script)
+
+        env = os.environ.copy()
+        env["TEST_CASE_LOCATION"] = tmp_path
+
+        process = await asyncio.create_subprocess_exec(
+            test_script_abs,
+            env=env,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+
+        _ = await process.wait()
+
+        if process.returncode != 0:
+            r = (GenericResult(1), False)
+            cached[query] = r
+            return r
+        else:
+            r = (GenericResult(2**64 - 10), True)
+            cached[query] = r
+            return r
+
+    except asyncio.CancelledError:
+        if process and process.returncode is None:
+            try:
+                process.terminate()
+                _ = await process.wait()
+            except ProcessLookupError:
+                pass
+        raise
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            print(f"could not remove file {tmp_path}")
+
+
 async def worker2(scheduler: BinaryBFS[DDMinState], test_script: str):
     while True:
         cancel_event = AsyncCancel()
@@ -256,8 +321,8 @@ async def worker2(scheduler: BinaryBFS[DDMinState], test_script: str):
         state: DDMinState = path.state()
         query = state.get_candidate()
 
-        actual_reduction = (len(shared_context["best_query"]) - len(query)) if query else 0
-        oracle_task = asyncio.create_task(oracle(query, test_script, actual_reduction))
+        # actual_reduction = (len(shared_context["best_query"]) - len(query)) if query else 0
+        oracle_task = asyncio.create_task(oracle2(query, test_script, 0))
 
         done, pending = await asyncio.wait(
             [cancel_task, oracle_task], return_when=asyncio.FIRST_COMPLETED
@@ -269,11 +334,12 @@ async def worker2(scheduler: BinaryBFS[DDMinState], test_script: str):
         if cancel_task in done:
             continue
 
-        result = oracle_task.result()
+        result, is_valid = oracle_task.result()
         scheduler.put_result(path, result)
 
-        if not result.is_dead() and query:
+        if not result.is_dead() and query and is_valid:
             shared_context["best_query"] = query
+            print(f"\nbest: {query}\n")
 
 
 async def worker(scheduler: TracedBFS, test_script: str):
@@ -318,7 +384,6 @@ async def sequential(test_script: str):
     state = DDMinState(shared_context["initial_query"])
 
     while True:
-
         next = state.get_candidate()
 
         if not next:
@@ -328,13 +393,10 @@ async def sequential(test_script: str):
 
         oracle_task = asyncio.create_task(oracle(next, test_script, actual_reduction))
 
-        _done, pending = await asyncio.wait(
-            [oracle_task], return_when=asyncio.FIRST_COMPLETED
-        )
+        _done, pending = await asyncio.wait([oracle_task], return_when=asyncio.FIRST_COMPLETED)
 
         for task in pending:
             _ = task.cancel()
-
 
         result = oracle_task.result()
 
@@ -354,6 +416,19 @@ async def main(query_path: str, test_script: str):
     shared_context["test_script"] = test_script
 
     workers = [asyncio.create_task(sequential(test_script)) for _ in range(1)]
+
+    _ = await asyncio.gather(*workers)
+
+    print(f"Reduced query: {shared_context['best_query']}")
+
+    shared_context["initial_query"] = initial_query
+    shared_context["best_query"] = initial_query
+    shared_context["test_script"] = test_script
+    shared_context["cached"] = {}
+
+    scheduler = BinaryBFS(DDMinState(initial_query))
+
+    workers = [asyncio.create_task(worker2(scheduler, test_script)) for _ in range(5)]
 
     _ = await asyncio.gather(*workers)
 

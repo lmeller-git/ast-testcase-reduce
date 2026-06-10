@@ -172,8 +172,9 @@ def local_replacements(node: SqlExpression) -> Iterable[tuple[str, SqlExpression
             yield "replace boolean expression with right side", right
 
     if isinstance(node, exp.Predicate):
-        yield "replace predicate with TRUE", exp.EQ(
-            this=exp.Literal.number(1), expression=exp.Literal.number(1)
+        yield (
+            "replace predicate with TRUE",
+            exp.EQ(this=exp.Literal.number(1), expression=exp.Literal.number(1)),
         )
 
     if isinstance(node, exp.Paren):
@@ -200,10 +201,9 @@ def generate_candidates(sql: str, dialect: str = DEFAULT_DIALECT) -> list[Candid
                 candidate_sql = render_sql(mutated, dialect=dialect)
                 if candidate_sql and candidate_sql.strip() not in seen:
                     seen.add(candidate_sql.strip())
-                    candidates.append((
-                        depth_of(path),
-                        Candidate(candidate_sql, f"remove {node.key} list item"),
-                    ))
+                    candidates.append(
+                        (depth_of(path), Candidate(candidate_sql, f"remove {node.key} list item"))
+                    )
 
         for description, replacement in local_replacements(node):
             mutated = set_at_path(root, path, replacement)
@@ -260,10 +260,7 @@ async def oracle(query: str, test_script: str, dialect: str = DEFAULT_DIALECT) -
 
 
 async def reduce_sql_text(
-    sql: str,
-    test_script: str,
-    dialect: str = DEFAULT_DIALECT,
-    max_passes: int = 100,
+    sql: str, test_script: str, dialect: str = DEFAULT_DIALECT, max_passes: int = 100
 ) -> str:
     """Greedily reduce SQL using hierarchical AST-local transformations."""
     current = sql
@@ -291,19 +288,13 @@ async def reduce_sql_text(
 
 
 async def reduce_sql_file(
-    query_path: str,
-    test_script: str,
-    dialect: str = DEFAULT_DIALECT,
-    max_passes: int = 100,
+    query_path: str, test_script: str, dialect: str = DEFAULT_DIALECT, max_passes: int = 100
 ) -> str:
     with open(query_path, encoding="utf-8") as f:
         sql = f.read()
 
     return await reduce_sql_text(
-        sql=sql,
-        test_script=test_script,
-        dialect=dialect,
-        max_passes=max_passes,
+        sql=sql, test_script=test_script, dialect=dialect, max_passes=max_passes
     )
 
 

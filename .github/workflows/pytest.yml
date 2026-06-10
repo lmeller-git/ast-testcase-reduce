@@ -35,7 +35,7 @@ jobs:
         run: uv run pytest --cov --cov-branch --cov-report=xml
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # tag=v6.0.1
+        uses: codecov/codecov-action@v7
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -250,7 +250,7 @@ async def ddmin_runner(test_script: str, algo: Any) -> str:
     return shared_context["best_query"]
 
 
-async def main(query_path: str, test_script: str, on_chars: bool):
+async def main(query_path: str, test_script: str, on_chars: bool, stop_early: bool):
     with open(query_path, "r", encoding="utf-8") as f:
         initial_query = f.read()
 
@@ -279,7 +279,7 @@ async def main(query_path: str, test_script: str, on_chars: bool):
 
         print(f"Current best: {len(shared_context['best_query'])}")
 
-        if len(shared_context["best_query"]) == current_best:
+        if len(shared_context["best_query"]) == current_best or stop_early:
             break
 
     print(f"Reduced Query: {shared_context['best_query']}")
@@ -296,11 +296,14 @@ if __name__ == "__main__":
     _ = parser.add_argument(
         "--on_chars", default=False, type=bool, help="ddmin on chars instead of tokens"
     )
+    _ = parser.add_argument(
+        "--stop_early", default=True, help="Do not run the algorithm till completion", type=bool
+    )
     args = parser.parse_args()
 
     if sys.platform == "win32":
-        asyncio.run(main(args.query, args.test, args.on_chars))
+        asyncio.run(main(args.query, args.test, args.on_chars, args.stop_early))
     else:
         import uvloop
 
-        uvloop.run(main(args.query, args.test, args.on_chars))
+        uvloop.run(main(args.query, args.test, args.on_chars, args.stop_early))

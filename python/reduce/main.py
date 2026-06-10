@@ -88,7 +88,14 @@ class DDMinState(PyState):
             return DDMinState(sql=self.sql, n=next_n, phase=next_phase, idx=next_idx)
 
 
-shared_context = {"initial_query": "", "best_query": "", "cached": {}}
+shared_context = {"initial_query": "", "best_query": "", "cached": {}, "query_path": ""}
+
+
+def update_best(reduced: str):
+    if len(reduced) < len(shared_context["best_query"]):
+        shared_context["best_query"] = reduced
+        with open(shared_context["query_path"], "w") as f:
+            _ = f.write(reduced)
 
 
 async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
@@ -185,7 +192,7 @@ async def sequential_statements(test_script: str):
             state = state.step(BinaryEvent.No)
         else:
             state = state.step(BinaryEvent.Yes)
-            shared_context["best_query"] = next_query_str
+            update_best(next_query_str)
 
 
 async def sequential_tokens(test_script: str):
@@ -242,11 +249,6 @@ async def sequential_chars(test_script: str):
             shared_context["best_query"] = next
 
 
-def update_best(reduced: str):
-    if len(reduced) < len(shared_context["best_query"]):
-        shared_context["best_query"] = reduced
-
-
 async def ddmin_runner(test_script: str, algo: Any) -> str:
     workers = [asyncio.create_task(algo(test_script)) for _ in range(1)]
 
@@ -261,6 +263,7 @@ async def main(query_path: str, test_script: str, on_chars: bool, stop_early: bo
 
     shared_context["initial_query"] = initial_query
     shared_context["best_query"] = initial_query
+    shared_context["query_path"] = query_path
 
     print(f"Initial length: {len(initial_query)}")
 
@@ -288,7 +291,8 @@ async def main(query_path: str, test_script: str, on_chars: bool, stop_early: bo
             break
 
     print(f"Reduced Query: {shared_context['best_query']}")
-    with open("query.sql", "w") as f:
+
+    with open(query_path, "w") as f:
         _ = f.write(shared_context["best_query"])
 
 

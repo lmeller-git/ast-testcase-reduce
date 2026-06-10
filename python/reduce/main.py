@@ -9,7 +9,7 @@ import tempfile
 import sqlglot
 import math
 
-from reduce.ast_reducer_idea import reduce_sql_text
+from reduce.ast_reducer import reduce_sql_text
 
 
 def add(n1: int, n2: int) -> int:

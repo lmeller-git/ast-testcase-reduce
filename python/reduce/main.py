@@ -45,7 +45,7 @@ class DDMinState(PyState):
 
         chunk_size = len(self.sql) // self.n
 
-        min_chunk_size = max(1, int(math.sqrt(len(self.sql))))
+        min_chunk_size = max(1, int(math.sqrt(len(self.sql)) / 5))
 
         return chunk_size < min_chunk_size
 
@@ -267,6 +267,10 @@ async def main(query_path: str, test_script: str, on_chars: bool):
 
         print("DDMin step Tokens...")
         reduced = await ddmin_runner(test_script, sequential_tokens)
+
+        if on_chars:
+            print("DDMin step n chars...")
+            reduced = await ddmin_runner(test_script, sequential_chars)
 
         print("Hierarchical step...")
         reduced = await reduce_sql_text(reduced, test_script)

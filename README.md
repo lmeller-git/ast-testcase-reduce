@@ -27,3 +27,10 @@ Then, the reducer can be ran on a specific query using simply
 ```
 
 where ``n`` refers to the query number.
+
+The specific docker commands to build and run the reducer are
+
+```bash
+docker build -t testcase-reduce .
+docker run --init --rm -v docker_out testcase-reduce --query <query path> --test <oracle path>
+```

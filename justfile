@@ -23,7 +23,7 @@ test: test-rust test-py
 run: build
     uv run python/reduce/main.py
 
-run-1 n: build
+run-1 n:
     uv run python/reduce/main.py --query queries/query{{n}}/original_test.sql --test queries/query{{n}}/test.sh
 
 docker-it:

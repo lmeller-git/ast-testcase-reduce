@@ -45,7 +45,7 @@ class DDMinState(PyState):
 
         chunk_size = len(self.sql) // self.n
 
-        min_chunk_size = max(1, int(math.sqrt(len(self.sql)) / 5))
+        min_chunk_size = max(1, int(math.ceil(math.sqrt(len(self.sql)) / 5)))
 
         return chunk_size < min_chunk_size
 

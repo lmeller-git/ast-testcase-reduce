@@ -26,9 +26,14 @@ run: build
 run-1 n:
     uv run python/reduce/main.py --query queries/query{{n}}/original_test.sql --test queries/query{{n}}/test.sh
 
-docker-it:
+build-docker:
     docker build -t testcase-reduce .
+
+docker-it: build-docker
     docker run -it --init --rm --entrypoint bash -v docker_out testcase-reduce
+
+docker n : build-docker
+    docker run --init --rm -v docker_out testcase-reduce --query queries/query{{n}}/original_test.sql --test queries/query{{n}}/test.sh
 
 lint:
     uv run ruff check python

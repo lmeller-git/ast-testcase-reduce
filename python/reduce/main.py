@@ -1,5 +1,5 @@
 import asyncio
-from typing import override
+from typing import Any, override
 from lib_ramis import CancelToken, GenericResult, PyState
 from lib_ramis.binary import BinaryEvent
 import argparse
@@ -7,6 +7,9 @@ import os
 import sys
 import tempfile
 import sqlglot
+import math
+
+from reduce.ast_reducer_idea import reduce_sql_text
 
 
 def add(n1: int, n2: int) -> int:
@@ -28,18 +31,25 @@ class AsyncCancel(CancelToken):
 
 
 class DDMinState(PyState):
-    def __init__(self, sql: list[str], n: int = 2, phase: str = "splits", idx: int = 0):
+    def __init__(self, sql: list[Any], n: int = 2, phase: str = "splits", idx: int = 0):
         super().__init__()
-        self.sql: list[str] = sql
+        self.sql: list[Any] = sql
         self.n: int = n
         self.phase: str = phase
         self.idx: int = idx
 
     @property
     def is_terminal(self) -> bool:
-        return self.n > len(self.sql)
+        if self.n > len(self.sql):
+            return True
 
-    def get_candidate(self) -> list[str]:
+        chunk_size = len(self.sql) // self.n
+
+        min_chunk_size = max(1, int(math.sqrt(len(self.sql))))
+
+        return chunk_size < min_chunk_size
+
+    def get_candidate(self) -> list[Any]:
         if self.is_terminal:
             return []
 
@@ -88,8 +98,10 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
         return cached_value
 
     try:
-        _ = sqlglot.parse_one(query, dialect="sqlite")
-    except Exception as _e:
+        expressions = list(sqlglot.parse(query, dialect="sqlite"))
+        if not expressions:
+            return GenericResult(0)
+    except Exception:
         cached[query] = GenericResult(0)
         return GenericResult(0)
 
@@ -139,8 +151,40 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
             print(f"could not remove file {tmp_path}")
 
 
+async def sequential_statements(test_script: str):
+    try:
+        statements = [
+            expr for expr in sqlglot.parse(shared_context["best_query"], dialect="sqlite")
+        ]
+    except Exception:
+        return
+
+    state = DDMinState(statements)
+
+    while True:
+        next_candidate = state.get_candidate()
+        if not next_candidate:
+            break
+
+        next_query_str = "".join([expr.sql(dialect="sqlite") + ";" for expr in next_candidate])
+
+        oracle_task = asyncio.create_task(oracle(next_query_str, test_script, 0))
+        _done, pending = await asyncio.wait([oracle_task], return_when=asyncio.FIRST_COMPLETED)
+
+        for task in pending:
+            _ = task.cancel()
+
+        result = oracle_task.result()
+
+        if result.is_dead():
+            state = state.step(BinaryEvent.No)
+        else:
+            state = state.step(BinaryEvent.Yes)
+            shared_context["best_query"] = next_query_str
+
+
 async def sequential_tokens(test_script: str):
-    state = DDMinState([token.text for token in sqlglot.tokenize(shared_context["initial_query"])])
+    state = DDMinState([token.text for token in sqlglot.tokenize(shared_context["best_query"])])
 
     while True:
         next = state.get_candidate()
@@ -167,7 +211,7 @@ async def sequential_tokens(test_script: str):
 
 
 async def sequential_chars(test_script: str):
-    state = DDMinState(list(shared_context["initial_query"]))
+    state = DDMinState(list(shared_context["best_query"]))
 
     while True:
         next = state.get_candidate()
@@ -193,24 +237,48 @@ async def sequential_chars(test_script: str):
             shared_context["best_query"] = next
 
 
+def update_best(reduced: str):
+    if len(reduced) < len(shared_context["best_query"]):
+        shared_context["best_query"] = reduced
+
+
+async def ddmin_runner(test_script: str, algo: Any) -> str:
+    workers = [asyncio.create_task(algo(test_script)) for _ in range(1)]
+
+    _ = await asyncio.gather(*workers)
+
+    return shared_context["best_query"]
+
+
 async def main(query_path: str, test_script: str, on_chars: bool):
     with open(query_path, "r", encoding="utf-8") as f:
         initial_query = f.read()
 
     shared_context["initial_query"] = initial_query
     shared_context["best_query"] = initial_query
-    shared_context["test_script"] = test_script
 
-    workers = [
-        asyncio.create_task(
-            sequential_chars(test_script) if on_chars else sequential_tokens(test_script)
-        )
-        for _ in range(1)
-    ]
+    print(f"Initial length: {len(initial_query)}")
 
-    _ = await asyncio.gather(*workers)
+    while True:
+        current_best = len(shared_context["best_query"])
 
-    print(f"Reduced query: {shared_context['best_query']}")
+        print("DDMin step Stmt...")
+        reduced = await ddmin_runner(test_script, sequential_statements)
+
+        print("DDMin step Tokens...")
+        reduced = await ddmin_runner(test_script, sequential_tokens)
+
+        print("Hierarchical step...")
+        reduced = await reduce_sql_text(reduced, test_script)
+
+        update_best(reduced)
+
+        print(f"Current best: {len(shared_context['best_query'])}")
+
+        if len(shared_context["best_query"]) == current_best:
+            break
+
+    print(f"Reduced Query: {shared_context['best_query']}")
 
 
 if __name__ == "__main__":

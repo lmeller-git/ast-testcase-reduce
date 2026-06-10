@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import os
 import tempfile
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -260,11 +261,12 @@ async def oracle(query: str, test_script: str, dialect: str = DEFAULT_DIALECT) -
 
 
 async def reduce_sql_text(
-    sql: str, test_script: str, dialect: str = DEFAULT_DIALECT, max_passes: int = 100
+    sql: str, test_script: str, dialect: str = DEFAULT_DIALECT, max_passes: int = 100, max_time: float = -1.
 ) -> str:
     """Greedily reduce SQL using hierarchical AST-local transformations."""
     current = sql
     cache: dict[str, bool] = {}
+    now = time.time()
 
     for _ in range(max_passes):
         accepted = False
@@ -280,6 +282,10 @@ async def reduce_sql_text(
                 current = candidate.sql
                 accepted = True
                 break
+
+            if max_time >= 0 and time.time() - now > max_time:
+                break
+
 
         if not accepted:
             break

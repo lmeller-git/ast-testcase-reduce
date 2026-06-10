@@ -154,9 +154,14 @@ async def oracle(query: str, test_script: str, reduction: int) -> GenericResult:
 async def sequential_statements(test_script: str):
     try:
         statements = [
-            expr for expr in sqlglot.parse(shared_context["best_query"], dialect="sqlite")
+            expr.sql(dialect="sqlite") + ";"
+            for expr in sqlglot.parse(shared_context["best_query"], dialect="sqlite")
+            if expr is not None
         ]
     except Exception:
+        return
+
+    if not statements:
         return
 
     state = DDMinState(statements)
@@ -166,7 +171,7 @@ async def sequential_statements(test_script: str):
         if not next_candidate:
             break
 
-        next_query_str = "".join([expr.sql(dialect="sqlite") + ";" for expr in next_candidate])
+        next_query_str = "".join(next_candidate)
 
         oracle_task = asyncio.create_task(oracle(next_query_str, test_script, 0))
         _done, pending = await asyncio.wait([oracle_task], return_when=asyncio.FIRST_COMPLETED)
@@ -273,7 +278,7 @@ async def main(query_path: str, test_script: str, on_chars: bool, stop_early: bo
             reduced = await ddmin_runner(test_script, sequential_chars)
 
         print("Hierarchical step...")
-        reduced = await reduce_sql_text(reduced, test_script)
+        reduced = await reduce_sql_text(reduced, test_script, max_passes=10)
 
         update_best(reduced)
 

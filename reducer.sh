@@ -2,4 +2,4 @@
 
 cd /app
 
-uv run python/reduce/main.py
+uv run python/reduce/main.py "$@"

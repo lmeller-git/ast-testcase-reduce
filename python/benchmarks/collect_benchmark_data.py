@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlglot
 
 
-QUERY_COUNT = 15
+QUERY_COUNT = 20
 OUTPUT_PATH = Path("python/benchmarks/benchmark_data.json")
 WORK_DIR = Path("python/benchmarks/tmp")
 

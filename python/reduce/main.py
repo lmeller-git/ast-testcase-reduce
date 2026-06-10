@@ -283,6 +283,8 @@ async def main(query_path: str, test_script: str, on_chars: bool, stop_early: bo
             break
 
     print(f"Reduced Query: {shared_context['best_query']}")
+    with open("query.sql", "w") as f:
+        _ = f.write(shared_context["best_query"])
 
 
 if __name__ == "__main__":

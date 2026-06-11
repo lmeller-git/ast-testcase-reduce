@@ -1,9 +1,3 @@
-"""AST-based SQL reducer.
-
-This module is intentionally standalone so it can be imported from the existing
-main reducer later without changing that file yet.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -20,6 +14,8 @@ from sqlglot import exp
 
 
 DEFAULT_DIALECT = "sqlite"
+DEFAULT_MAX_CANDIDATES = 300
+DEFAULT_MAX_CANDIDATES_PER_STATEMENT = 30
 SqlExpression = Any
 _EXPRESSION_TYPE = exp.Expression  # type: ignore[attr-defined]
 
@@ -130,6 +126,62 @@ def depth_of(path: ExpressionPath) -> int:
     return len(path)
 
 
+def split_sql_statements(sql: str) -> list[str]:
+    try:
+        tokens = sqlglot.Tokenizer().tokenize(sql)
+    except Exception:
+        return [part + ";" for part in sql.split(";") if part.strip()]
+
+    statements: list[str] = []
+    start = 0
+    for token in tokens:
+        if token.token_type.name == "SEMICOLON":
+            end = token.end + 1
+            statement = sql[start:end]
+            if statement.strip():
+                statements.append(statement)
+            start = end
+
+    tail = sql[start:]
+    if tail.strip():
+        statements.append(tail)
+
+    return statements
+
+
+def replace_statement(statements: list[str], index: int, replacement: str) -> str:
+    rewritten = list(statements)
+    suffix = ";" if statements[index].rstrip().endswith(";") else ""
+    rewritten[index] = f"{replacement.rstrip(';')}{suffix}\n"
+    return "".join(rewritten)
+
+
+def candidate_priority(description: str) -> int:
+    if description.startswith("remove WHERE"):
+        return 0
+    if description.startswith("remove HAVING"):
+        return 1
+    if description.startswith("remove ORDER BY"):
+        return 2
+    if description.startswith("remove GROUP BY"):
+        return 3
+    if description.startswith("remove LIMIT"):
+        return 4
+    if description.startswith("remove JOIN"):
+        return 5
+    if description.startswith("replace boolean"):
+        return 6
+    if description.startswith("replace predicate"):
+        return 7
+    if description.startswith("remove") and "list item" in description:
+        return 8
+    if description.startswith("remove parentheses"):
+        return 9
+    if description.startswith("replace"):
+        return 10
+    return 11
+
+
 def simple_literal_replacements(node: SqlExpression) -> list[SqlExpression]:
     if isinstance(node, exp.Literal):
         if node.is_string:
@@ -187,12 +239,14 @@ def local_replacements(node: SqlExpression) -> Iterable[tuple[str, SqlExpression
         yield f"replace {node.key} with {replacement.sql(dialect=DEFAULT_DIALECT)}", replacement
 
 
-def generate_candidates(sql: str, dialect: str = DEFAULT_DIALECT) -> list[Candidate]:
-    root = parse_sql(sql, dialect=dialect)
+def generate_statement_candidates(
+    statement: str, dialect: str = DEFAULT_DIALECT, max_candidates: int = DEFAULT_MAX_CANDIDATES
+) -> list[Candidate]:
+    root = parse_sql(statement, dialect=dialect)
     if root is None:
         return []
 
-    seen: set[str] = {sql.strip()}
+    seen: set[str] = {statement.strip()}
     candidates: list[tuple[int, Candidate]] = []
 
     for path, node in iter_expression_paths(root):
@@ -205,6 +259,8 @@ def generate_candidates(sql: str, dialect: str = DEFAULT_DIALECT) -> list[Candid
                     candidates.append(
                         (depth_of(path), Candidate(candidate_sql, f"remove {node.key} list item"))
                     )
+                    if len(candidates) >= max_candidates:
+                        break
 
         for description, replacement in local_replacements(node):
             mutated = set_at_path(root, path, replacement)
@@ -217,13 +273,59 @@ def generate_candidates(sql: str, dialect: str = DEFAULT_DIALECT) -> list[Candid
 
             seen.add(candidate_sql.strip())
             candidates.append((depth_of(path), Candidate(candidate_sql, description)))
+            if len(candidates) >= max_candidates:
+                break
 
-    candidates.sort(key=lambda item: (item[0], len(item[1].sql)))
+        if len(candidates) >= max_candidates:
+            break
+
+    candidates.sort(
+        key=lambda item: (
+            candidate_priority(item[1].description),
+            item[0],
+            len(item[1].sql),
+        )
+    )
     return [candidate for _, candidate in candidates]
 
 
+def generate_candidates(
+    sql: str, dialect: str = DEFAULT_DIALECT, max_candidates: int = DEFAULT_MAX_CANDIDATES
+) -> list[Candidate]:
+    statements = split_sql_statements(sql)
+    if len(statements) <= 1:
+        return generate_statement_candidates(sql, dialect=dialect, max_candidates=max_candidates)
+
+    seen: set[str] = {sql.strip()}
+    candidates: list[Candidate] = []
+
+    for index, statement in enumerate(statements):
+        remaining = max_candidates - len(candidates)
+        if remaining <= 0:
+            break
+
+        statement_budget = min(remaining, DEFAULT_MAX_CANDIDATES_PER_STATEMENT)
+        for candidate in generate_statement_candidates(
+            statement, dialect=dialect, max_candidates=statement_budget
+        ):
+            candidate_sql = replace_statement(statements, index, candidate.sql)
+            if candidate_sql.strip() in seen:
+                continue
+
+            seen.add(candidate_sql.strip())
+            candidates.append(
+                Candidate(candidate_sql, f"statement {index + 1}: {candidate.description}")
+            )
+
+            if len(candidates) >= max_candidates:
+                break
+
+    candidates.sort(key=lambda candidate: (candidate_priority(candidate.description.split(": ", 1)[-1]), len(candidate.sql)))
+    return candidates[:max_candidates]
+
+
 async def oracle(query: str, test_script: str, dialect: str = DEFAULT_DIALECT) -> bool:
-    if parse_sql(query, dialect=dialect) is None:
+    if not any(parse_sql(statement, dialect=dialect) is not None for statement in split_sql_statements(query)):
         return False
 
     with tempfile.NamedTemporaryFile(
@@ -261,7 +363,12 @@ async def oracle(query: str, test_script: str, dialect: str = DEFAULT_DIALECT) -
 
 
 async def reduce_sql_text(
-    sql: str, test_script: str, dialect: str = DEFAULT_DIALECT, max_passes: int = 100, max_time: float = -1.
+    sql: str,
+    test_script: str,
+    dialect: str = DEFAULT_DIALECT,
+    max_passes: int = 100,
+    max_time: float = -1.0,
+    max_candidates: int = DEFAULT_MAX_CANDIDATES,
 ) -> str:
     """Greedily reduce SQL using hierarchical AST-local transformations."""
     current = sql
@@ -271,7 +378,9 @@ async def reduce_sql_text(
     for _ in range(max_passes):
         accepted = False
 
-        for candidate in generate_candidates(current, dialect=dialect):
+        for candidate in generate_candidates(
+            current, dialect=dialect, max_candidates=max_candidates
+        ):
             cached = cache.get(candidate.sql)
             interesting = cached
             if interesting is None:
